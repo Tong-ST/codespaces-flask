@@ -1,15 +1,17 @@
 import os
 import requests
-from flask import Flask, redirect, request, session
+from flask import Flask, redirect, request
 
 app = Flask(__name__)
-app.secret_key = os.getenv("RANDOM_SECRET")
+app.secret_key = os.getenv("FLASK_SECRET_KEY")   # Make sure Render has this
 
 CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 
-REPOSITORY = "https://github.com/Tong-ST/codespaces-flask"   # Your repo
+REPOSITORY = "Tong-ST/codespaces-flask"   # Correct format
 BRANCH = "main"
+
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")  # Render auto-provides this
 
 
 @app.route("/")
@@ -19,9 +21,13 @@ def index():
 
 @app.route("/login")
 def login():
+    callback_url = f"{RENDER_URL}/callback"
+
     return redirect(
         f"https://github.com/login/oauth/authorize"
-        f"?client_id={CLIENT_ID}&scope=codespace"
+        f"?client_id={CLIENT_ID}"
+        f"&redirect_uri={callback_url}"
+        f"&scope=codespace"
     )
 
 
@@ -54,10 +60,6 @@ def callback():
         },
     ).json()
 
-    # URL of the student’s IDE
     codespace_url = create["web_url"]
 
     return redirect(codespace_url)
-
-
-app.run(host="0.0.0.0", port=8080)
