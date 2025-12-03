@@ -3,15 +3,15 @@ import requests
 from flask import Flask, redirect, request
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY")   # Make sure Render has this
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback_secret")
 
 CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 
-REPOSITORY = "Tong-ST/codespaces-flask"   # Correct format
+REPOSITORY = "Tong-ST/codespaces-flask"  # owner/repo format
 BRANCH = "main"
 
-RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")  # Render auto-provides this
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:5000")
 
 
 @app.route("/")
@@ -22,18 +22,20 @@ def index():
 @app.route("/login")
 def login():
     callback_url = f"{RENDER_URL}/callback"
-
-    return redirect(
+    login_url = (
         f"https://github.com/login/oauth/authorize"
         f"?client_id={CLIENT_ID}"
         f"&redirect_uri={callback_url}"
         f"&scope=codespace"
     )
+    return redirect(login_url)
 
 
 @app.route("/callback")
 def callback():
     code = request.args.get("code")
+    if not code:
+        return "Error: No code returned from GitHub.", 400
 
     # Exchange code for access token
     token_resp = requests.post(
@@ -45,18 +47,15 @@ def callback():
             "code": code,
         },
     ).json()
-    
-    print(token_resp)
+
+    print("DEBUG token_resp:", token_resp)  # Render logs
+
     access_token = token_resp.get("access_token")
-    print("Access token:", access_token)
-    
     if not access_token:
         return f"Error getting access token: {token_resp}", 400
 
-
-
-    # Create Codespace
-    create = requests.post(
+    # Attempt to create Codespace
+    create_resp = requests.post(
         "https://api.github.com/user/codespaces/",
         headers={"Authorization": f"token {access_token}"},
         json={
@@ -67,9 +66,14 @@ def callback():
         },
     ).json()
 
-    codespace_url = create["web_url"]
+    print("DEBUG create_resp:", create_resp)  # Render logs
+
+    codespace_url = create_resp.get("web_url")
+    if not codespace_url:
+        return f"Error creating Codespace: {create_resp}", 400
 
     return redirect(codespace_url)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
